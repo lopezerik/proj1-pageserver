@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 import socket    # Basic TCP/IP communication on the internet
 import _thread   # Response computation runs concurrently with main program
 
+import os        #for getting file paths in respond
 
 def listen(portnum):
     """
@@ -92,7 +93,28 @@ def respond(sock):
     parts = request.split()
     if len(parts) > 1 and parts[0] == "GET":
         transmit(STATUS_OK, sock)
-        transmit(CAT, sock)
+	#new code
+        newOptions = config.configuration()
+        root = newOptions.DOCROOT
+        page_name = parts[1].lstrip("/")
+        file_path = os.path.join(root, page_name)
+        file_parts = page_name.split(".")
+        file_extension = file_parts[-1]
+        if (".." in parts[1]) or ("~" in parts[1]) or ("//" in parts[1]):
+            transmit(STATUS_FORBIDDEN, sock)
+            log.warn(STATUS_FORBIDDEN)
+        elif file_extension == "html" or file_extension == "css":
+            try:
+                with open(file_path, 'r') as page_file:
+                    data = page_file.read()
+                    transmit(data, sock)
+            except OSError as error:
+                transmit(STATUS_NOT_FOUND, sock)
+                log.warn(STATUS_NOT_FOUND)
+        else:
+            transmit(STATUS_FORBIDDEN, sock)
+            log.warn(STATUS_FORBIDDEN)
+        
     else:
         log.info("Unhandled request: {}".format(request))
         transmit(STATUS_NOT_IMPLEMENTED, sock)
